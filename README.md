@@ -6,6 +6,8 @@ Classic Snake game for [Even Realities G2](https://www.evenrealities.com/) smart
 
 Swipe to steer, eat food, grow longer. No server required – everything runs client-side.
 
+![Screenshot](screenshot.png)
+
 ## Architecture
 
 The main challenge is performance: the G2 display is updated by pushing PNG images over BLE, which makes high-frequency frame updates expensive. The game is designed around this constraint:
