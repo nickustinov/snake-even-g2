@@ -183,24 +183,47 @@ export function drawGameOver(): void {
 // Title screen
 // ---------------------------------------------------------------------------
 
-export function drawTitleScreen(): void {
+let splashImg: HTMLImageElement | null = null
+let splashLoaded = false
+
+function loadSplash(): Promise<void> {
+  if (splashLoaded) return Promise.resolve()
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.onload = () => {
+      splashImg = img
+      splashLoaded = true
+      resolve()
+    }
+    img.onerror = () => {
+      splashLoaded = true
+      resolve()
+    }
+    img.src = new URL('./splash.png', import.meta.url).href
+  })
+}
+
+export async function drawTitleScreen(): Promise<void> {
+  await loadSplash()
+
   ctx.fillStyle = '#000'
   ctx.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT)
 
+  if (splashImg) {
+    ctx.drawImage(splashImg, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT)
+  }
+
   ctx.textAlign = 'center'
 
-  ctx.font = 'bold 36px system-ui, -apple-system, sans-serif'
-  ctx.fillStyle = '#fff'
-  ctx.fillText('SNAKE', DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 - 20)
-
+  // Instructions – lower area, below the snake logo
   ctx.font = '14px system-ui, -apple-system, sans-serif'
-  ctx.fillStyle = '#888'
-  ctx.fillText('Swipe to steer \u00B7 Tap to start', DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 15)
+  ctx.fillStyle = '#aaa'
+  ctx.fillText('Swipe to steer \u00B7 Tap to start', DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 40)
 
   if (game.highScore > 0) {
-    ctx.font = '12px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#555'
-    ctx.fillText(`Best: ${game.highScore}`, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 40)
+    ctx.font = '13px system-ui, -apple-system, sans-serif'
+    ctx.fillStyle = '#888'
+    ctx.fillText(`Best: ${game.highScore}`, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 18)
   }
 
   ctx.textAlign = 'left'
@@ -241,7 +264,7 @@ export async function pushFrame(): Promise<void> {
 
 export async function initDisplay(): Promise<void> {
   await setupPage()
-  drawTitleScreen()
+  await drawTitleScreen()
   await pushFrame()
   appendEventLog('Snake: display initialized')
 }
