@@ -4,7 +4,7 @@
 
 Classic Snake game for [Even Realities G2](https://www.evenrealities.com/) smart glasses.
 
-Swipe to steer, eat food, grow longer. No server required – everything runs client-side.
+Swipe to steer, eat food, grow longer. Global best score shared across all players via Redis.
 
 <p>
   <img src="screenshot-splash.png" width="49%" />
@@ -74,8 +74,10 @@ npm run dev
 
 ```bash
 cd /path/to/even-dev
-APP_PATH=/path/to/snake-even-g2 ./start-even.sh
+REDIS_URL="redis://..." APP_PATH=/path/to/snake-even-g2 ./start-even.sh
 ```
+
+Set `REDIS_URL` to enable the global best score API. Without it, scores won't persist.
 
 ### Run on real glasses
 
@@ -96,4 +98,6 @@ npm run pack  # builds and creates snake.ehpk
 
 - **G2 frontend:** TypeScript + [Even Hub SDK](https://www.npmjs.com/package/@evenrealities/even_hub_sdk)
 - **Build:** [Vite](https://vitejs.dev/)
+- **Backend:** [Redis](https://redis.io/) via [ioredis](https://github.com/redis/ioredis) (global best score)
+- **Hosting:** [Vercel](https://vercel.com/) (serverless API + static frontend)
 - **CLI:** [evenhub-cli](https://www.npmjs.com/package/@evenrealities/evenhub-cli)
