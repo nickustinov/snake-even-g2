@@ -5,8 +5,7 @@ export const app: AppModule = {
   id: 'snake',
   name: 'Snake',
   pageTitle: 'Snake',
-  connectLabel: 'Connect glasses',
-  actionLabel: 'New game',
+  autoConnect: true,
   initialStatus: 'Snake ready',
   createActions: createSnakeActions,
 }

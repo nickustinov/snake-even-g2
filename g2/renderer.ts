@@ -4,32 +4,145 @@ import {
   ImageRawDataUpdate,
   RebuildPageContainer,
   TextContainerProperty,
+  TextContainerUpgrade,
 } from '@evenrealities/even_hub_sdk'
 import { appendEventLog } from '../_shared/log'
-import { DISPLAY_WIDTH, DISPLAY_HEIGHT, CELL, COLS, ROWS } from './layout'
+import { DISPLAY_WIDTH, DISPLAY_HEIGHT, COLS, ROWS } from './layout'
 import { game, bridge } from './state'
-import type { TickResult } from './game'
 
 // ---------------------------------------------------------------------------
-// Persistent canvas – we never recreate it, only paint deltas
+// Unicode characters for the grid
 // ---------------------------------------------------------------------------
 
-const canvas = document.createElement('canvas')
-canvas.width = DISPLAY_WIDTH
-canvas.height = DISPLAY_HEIGHT
-const ctx = canvas.getContext('2d')!
+const EMPTY = '\u25A1' // □ white square
+const SNAKE = '\u25A6' // ▦ square with orthogonal crosshatch
+const FOOD = '\u25C6'  // ◆ black diamond
+
+// ---------------------------------------------------------------------------
+// Logo image
+// ---------------------------------------------------------------------------
+
+const LOGO_W = 200
+const LOGO_H = 100
+const LOGO_X = Math.floor((DISPLAY_WIDTH - LOGO_W) / 2)
+const LOGO_Y = 70
+
+let logoBytes: number[] | null = null
+let gameoverBytes: number[] | null = null
+
+async function loadImages(): Promise<void> {
+  const load = async (path: string): Promise<number[] | null> => {
+    try {
+      const url = new URL(path, import.meta.url).href
+      const res = await fetch(url)
+      const buf = await res.arrayBuffer()
+      return Array.from(new Uint8Array(buf))
+    } catch {
+      appendEventLog(`Snake: failed to load ${path}`)
+      return null
+    }
+  }
+  if (!logoBytes) logoBytes = await load('./logo.png')
+  if (!gameoverBytes) gameoverBytes = await load('./gameover.png')
+}
+
+async function pushImage(bytes: number[] | null): Promise<void> {
+  if (!bridge || !bytes) return
+  await bridge.updateImageRawData(
+    new ImageRawDataUpdate({
+      containerID: 2,
+      containerName: 'img',
+      imageData: bytes,
+    }),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Page layouts
+// ---------------------------------------------------------------------------
 
 let startupRendered = false
 let pageSetUp = false
 
-// ---------------------------------------------------------------------------
-// Page setup – called ONCE, never rebuilt during gameplay
-// ---------------------------------------------------------------------------
+type PageMode = 'splash' | 'game' | 'gameover'
+let currentPage: PageMode = 'splash'
 
-async function setupPage(): Promise<void> {
+function splashText(): string {
+  const parts: string[] = []
+  if (game.highScore > 0) parts.push(`Best: ${game.highScore}`)
+  parts.push('Tap to start')
+  parts.push('Swipe to steer')
+  return parts.join(' \u00B7 ')
+}
+
+function buildImagePage(text: string, textX: number): object {
+  return {
+    containerTotalNum: 3,
+    textObject: [
+      new TextContainerProperty({
+        containerID: 1,
+        containerName: 'evt',
+        content: ' ',
+        xPosition: 0,
+        yPosition: 0,
+        width: DISPLAY_WIDTH,
+        height: DISPLAY_HEIGHT,
+        isEventCapture: 1,
+        paddingLength: 0,
+      }),
+      new TextContainerProperty({
+        containerID: 3,
+        containerName: 'info',
+        content: text,
+        xPosition: textX,
+        yPosition: LOGO_Y + LOGO_H + 15,
+        width: DISPLAY_WIDTH - textX,
+        height: DISPLAY_HEIGHT - LOGO_Y - LOGO_H - 15,
+        isEventCapture: 0,
+        paddingLength: 0,
+      }),
+    ],
+    imageObject: [
+      new ImageContainerProperty({
+        containerID: 2,
+        containerName: 'img',
+        xPosition: LOGO_X,
+        yPosition: LOGO_Y,
+        width: LOGO_W,
+        height: LOGO_H,
+      }),
+    ],
+  }
+}
+
+async function setupSplashPage(): Promise<void> {
   if (!bridge) return
-  // Text container behind the image captures scroll + click events.
-  // Image container on top renders the game.
+  const config = buildImagePage(splashText(), 130)
+
+  if (!startupRendered) {
+    await bridge.createStartUpPageContainer(new CreateStartUpPageContainer(config))
+    startupRendered = true
+  } else {
+    await bridge.rebuildPageContainer(new RebuildPageContainer(config))
+  }
+  pageSetUp = true
+  currentPage = 'splash'
+
+  await pushImage(logoBytes)
+}
+
+async function setupGameOverPage(): Promise<void> {
+  if (!bridge) return
+  const config = buildImagePage(gameOverText(), 132)
+  await bridge.rebuildPageContainer(new RebuildPageContainer(config))
+  pageSetUp = true
+  currentPage = 'gameover'
+
+  await pushImage(gameoverBytes)
+}
+
+async function setupGamePage(initialContent: string): Promise<void> {
+  if (!bridge) return
   const config = {
     containerTotalNum: 2,
     textObject: [
@@ -44,213 +157,105 @@ async function setupPage(): Promise<void> {
         isEventCapture: 1,
         paddingLength: 0,
       }),
-    ],
-    imageObject: [
-      new ImageContainerProperty({
+      new TextContainerProperty({
         containerID: 2,
         containerName: 'screen',
+        content: initialContent,
         xPosition: 0,
         yPosition: 0,
         width: DISPLAY_WIDTH,
         height: DISPLAY_HEIGHT,
+        isEventCapture: 0,
+        paddingLength: 0,
       }),
     ],
   }
 
-  if (!startupRendered) {
-    await bridge.createStartUpPageContainer(new CreateStartUpPageContainer(config))
-    startupRendered = true
-  } else {
-    await bridge.rebuildPageContainer(new RebuildPageContainer(config))
-  }
+  await bridge.rebuildPageContainer(new RebuildPageContainer(config))
   pageSetUp = true
+  currentPage = 'game'
 }
 
 // ---------------------------------------------------------------------------
-// Canvas helpers
+// Text rendering
 // ---------------------------------------------------------------------------
 
-function cellRect(x: number, y: number, color: string): void {
-  ctx.fillStyle = color
-  ctx.fillRect(x * CELL + 1, y * CELL + 1, CELL - 2, CELL - 2)
-}
+function renderGrid(): string {
+  const snakeSet = new Set(game.snake.map((p) => `${p.x},${p.y}`))
+  const foodKey = `${game.food.x},${game.food.y}`
 
-function drawFood(x: number, y: number): void {
-  const cx = x * CELL + CELL / 2
-  const cy = y * CELL + CELL / 2
-  ctx.fillStyle = '#fff'
-  ctx.beginPath()
-  ctx.arc(cx, cy, CELL / 2 - 2, 0, Math.PI * 2)
-  ctx.fill()
-}
-
-function clearCell(x: number, y: number): void {
-  ctx.fillStyle = '#000'
-  ctx.fillRect(x * CELL, y * CELL, CELL, CELL)
-}
-
-function drawScore(): void {
-  // Black background behind score text
-  ctx.fillStyle = '#000'
-  ctx.fillRect(0, 0, 80, 16)
-  ctx.font = 'bold 12px system-ui, -apple-system, sans-serif'
-  ctx.fillStyle = '#888'
-  ctx.textAlign = 'left'
-  ctx.fillText(`${game.score}`, 4, 12)
-}
-
-// ---------------------------------------------------------------------------
-// Full redraw – used for initial render and game restart
-// ---------------------------------------------------------------------------
-
-export function drawFullFrame(): void {
-  ctx.fillStyle = '#000'
-  ctx.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT)
-
-  // Snake
-  for (let i = 0; i < game.snake.length; i++) {
-    const p = game.snake[i]
-    const brightness = i === 0 ? '#fff' : '#aaa'
-    cellRect(p.x, p.y, brightness)
-  }
-
-  // Food
-  drawFood(game.food.x, game.food.y)
-
-  drawScore()
-}
-
-// ---------------------------------------------------------------------------
-// Delta redraw – only changed cells, called each tick
-// ---------------------------------------------------------------------------
-
-export function drawDelta(result: TickResult): void {
-  // Old head becomes body
-  if (game.snake.length > 1) {
-    const oldHead = game.snake[1]
-    cellRect(oldHead.x, oldHead.y, '#aaa')
-  }
-
-  // New head
-  cellRect(result.newHead.x, result.newHead.y, '#fff')
-
-  // Removed tail
-  if (result.removedTail) {
-    clearCell(result.removedTail.x, result.removedTail.y)
-  }
-
-  // New food
-  if (result.newFood) {
-    drawFood(result.newFood.x, result.newFood.y)
-  }
-
-  drawScore()
-}
-
-// ---------------------------------------------------------------------------
-// Game over overlay
-// ---------------------------------------------------------------------------
-
-export function drawGameOver(): void {
-  // Semi-transparent overlay
-  ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'
-  ctx.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT)
-
-  ctx.textAlign = 'center'
-
-  ctx.font = 'bold 32px system-ui, -apple-system, sans-serif'
-  ctx.fillStyle = '#fff'
-  ctx.fillText('GAME OVER', DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 - 20)
-
-  ctx.font = '18px system-ui, -apple-system, sans-serif'
-  ctx.fillStyle = '#aaa'
-  ctx.fillText(`Score: ${game.score}`, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 15)
-
-  if (game.highScore > 0) {
-    ctx.font = '14px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#666'
-    ctx.fillText(`Best: ${game.highScore}`, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 40)
-  }
-
-  ctx.font = '12px system-ui, -apple-system, sans-serif'
-  ctx.fillStyle = '#555'
-  ctx.fillText('Tap to play again', DISPLAY_WIDTH / 2, DISPLAY_HEIGHT / 2 + 65)
-
-  ctx.textAlign = 'left'
-}
-
-// ---------------------------------------------------------------------------
-// Title screen
-// ---------------------------------------------------------------------------
-
-let splashImg: HTMLImageElement | null = null
-let splashLoaded = false
-
-function loadSplash(): Promise<void> {
-  if (splashLoaded) return Promise.resolve()
-  return new Promise((resolve) => {
-    const img = new Image()
-    img.onload = () => {
-      splashImg = img
-      splashLoaded = true
-      resolve()
+  let text = ''
+  for (let y = 0; y < ROWS; y++) {
+    let row = ''
+    for (let x = 0; x < COLS; x++) {
+      const key = `${x},${y}`
+      if (snakeSet.has(key)) {
+        row += SNAKE
+      } else if (key === foodKey) {
+        row += FOOD
+      } else {
+        row += EMPTY
+      }
     }
-    img.onerror = () => {
-      splashLoaded = true
-      resolve()
-    }
-    img.src = new URL('./splash.png', import.meta.url).href
-  })
+    text += row + '\n'
+  }
+  return text
 }
 
-export async function drawTitleScreen(): Promise<void> {
-  await loadSplash()
-
-  ctx.fillStyle = '#000'
-  ctx.fillRect(0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT)
-
-  if (splashImg) {
-    ctx.drawImage(splashImg, 0, 0, DISPLAY_WIDTH, DISPLAY_HEIGHT)
-  }
-
-  ctx.textAlign = 'center'
-
-  // Instructions – lower area, below the snake logo
-  ctx.font = '14px system-ui, -apple-system, sans-serif'
-  ctx.fillStyle = '#aaa'
-  ctx.fillText('Swipe to steer \u00B7 Tap to start', DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 40)
-
-  if (game.highScore > 0) {
-    ctx.font = '13px system-ui, -apple-system, sans-serif'
-    ctx.fillStyle = '#888'
-    ctx.fillText(`Best: ${game.highScore}`, DISPLAY_WIDTH / 2, DISPLAY_HEIGHT - 18)
-  }
-
-  ctx.textAlign = 'left'
+function gameOverText(): string {
+  const parts = [`Score: ${game.score}`]
+  if (game.highScore > 0) parts.push(`Best: ${game.highScore}`)
+  parts.push('Tap to play again')
+  return parts.join(' \u00B7 ')
 }
 
 // ---------------------------------------------------------------------------
-// Image push – the only way frames reach the glasses
+// Frame push
 // ---------------------------------------------------------------------------
 
 let pushInFlight = false
 
 export async function pushFrame(): Promise<void> {
   if (!bridge || !pageSetUp) return
-  if (pushInFlight) return // skip frame if previous push still in progress
+  if (pushInFlight) return
   pushInFlight = true
   try {
-    const dataUrl = canvas.toDataURL('image/png')
-    const binary = atob(dataUrl.split(',')[1])
-    const bytes: number[] = new Array(binary.length)
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i)
+    // Transition from splash/gameover to game page
+    if (currentPage !== 'game' && game.running) {
+      const text = renderGrid()
+      await setupGamePage(text)
+      return
     }
-    await bridge.updateImageRawData(
-      new ImageRawDataUpdate({
+
+    // Transition from game to game over page
+    if (currentPage === 'game' && game.over) {
+      await setupGameOverPage()
+      return
+    }
+
+    // On splash/gameover page, update the info text
+    if (currentPage === 'splash' || currentPage === 'gameover') {
+      const text = currentPage === 'splash' ? splashText() : gameOverText()
+      await bridge.textContainerUpgrade(
+        new TextContainerUpgrade({
+          containerID: 3,
+          containerName: 'info',
+          contentOffset: 0,
+          contentLength: 2000,
+          content: text,
+        }),
+      )
+      return
+    }
+
+    // Game page – update grid
+    await bridge.textContainerUpgrade(
+      new TextContainerUpgrade({
         containerID: 2,
         containerName: 'screen',
-        imageData: bytes,
+        contentOffset: 0,
+        contentLength: 2000,
+        content: renderGrid(),
       }),
     )
   } finally {
@@ -258,14 +263,17 @@ export async function pushFrame(): Promise<void> {
   }
 }
 
+export async function showSplash(): Promise<void> {
+  await setupSplashPage()
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 export async function initDisplay(): Promise<void> {
-  await setupPage()
-  await drawTitleScreen()
-  await pushFrame()
+  await loadImages()
+  await setupSplashPage()
   appendEventLog('Snake: display initialized')
 }
 

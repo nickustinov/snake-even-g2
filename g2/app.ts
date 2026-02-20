@@ -3,13 +3,7 @@ import { appendEventLog } from '../_shared/log'
 import { TICK_MS } from './layout'
 import { game, setBridge, resetGame } from './state'
 import { tick } from './game'
-import {
-  initDisplay,
-  drawFullFrame,
-  drawDelta,
-  drawGameOver,
-  pushFrame,
-} from './renderer'
+import { initDisplay, pushFrame, showSplash } from './renderer'
 import { onEvenHubEvent, setStartGame } from './events'
 
 function sleep(ms: number): Promise<void> {
@@ -24,13 +18,11 @@ async function gameLoop(): Promise<void> {
     const result = tick()
 
     if (result.died) {
-      drawGameOver()
       await pushFrame()
       appendEventLog(`Snake: game over, score=${game.score}`)
       break
     }
 
-    drawDelta(result)
     await pushFrame()
 
     const elapsed = Date.now() - start
@@ -40,8 +32,14 @@ async function gameLoop(): Promise<void> {
 
 export function startGame(): void {
   if (game.running) return
+  if (game.over) {
+    // Game over → return to splash screen
+    game.over = false
+    void showSplash()
+    appendEventLog('Snake: back to splash')
+    return
+  }
   resetGame()
-  drawFullFrame()
   void pushFrame().then(() => {
     void gameLoop()
   })

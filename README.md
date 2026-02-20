@@ -1,4 +1,4 @@
-# Snake Even G2
+# Snake for Even G2
 
 > See also: [G2 development notes](https://github.com/nickustinov/even-g2-notes/blob/main/G2.md) – hardware specs, UI system, input handling and practical patterns for Even Realities G2.
 
@@ -6,29 +6,37 @@ Classic Snake game for [Even Realities G2](https://www.evenrealities.com/) smart
 
 Swipe to steer, eat food, grow longer. No server required – everything runs client-side.
 
-![Screenshot](screenshot.png)
+<p>
+  <img src="screenshot-splash.png" width="49%" />
+  <img src="screenshot-game.png" width="49%" />
+</p>
+<p>
+  <img src="screenshot-gameover.png" width="49%" />
+</p>
 
 ## Architecture
 
-The main challenge is performance: the G2 display is updated by pushing PNG images over BLE, which makes high-frequency frame updates expensive. The game is designed around this constraint:
+The game uses three different page layouts, switching between them via `rebuildPageContainer`:
 
-1. **Page container set up once** – `createStartUpPageContainer` is called once at launch. During gameplay, only `updateImageRawData` is called – no page rebuilds.
+- **Splash screen** – image container with logo + text container with instructions
+- **Gameplay** – text container with unicode grid (`□` empty, `▦` snake, `◆` food)
+- **Game over** – image container with game over graphic + text container with score
 
-2. **Persistent canvas with delta rendering** – a single Canvas stays in memory for the entire session. Each tick only repaints the changed cells (new head, cleared tail, new food) instead of redrawing the full 576×288 board.
+A hidden text container with `isEventCapture: 1` and minimal content (`' '`) is present on every page. This receives scroll/tap events without the firmware's internal text scrolling consuming swipe gestures.
 
-3. **Self-pacing game loop** – the loop awaits each image push before scheduling the next tick. If a push takes longer than the tick interval, the game slows gracefully instead of queuing frames.
-
-4. **Frame skip on backpressure** – if a push is still in flight, the next frame is silently dropped rather than queued.
+During gameplay, only `textContainerUpgrade` is called – no page rebuilds until the game ends.
 
 ```
-tick() → drawDelta() → await pushFrame() → sleep(remaining) → repeat
+tick() → pushFrame() → sleep(remaining) → repeat
 ```
+
+The loop awaits each text push before scheduling the next tick. If a push is still in flight, the frame is silently dropped.
 
 ### Grid
 
-- 576×288 display at 16px cells = 36 columns × 18 rows
-- Snake wraps around edges (no wall death)
-- ~250ms per tick (~4 moves/second)
+- 28 columns × 10 rows
+- Wall death (hitting edges ends the game)
+- ~350ms per tick (~3 moves/second)
 
 ## Controls
 
@@ -44,33 +52,48 @@ tick() → drawDelta() → await pushFrame() → sleep(remaining) → repeat
 ```
 g2/
   index.ts       App module registration
-  main.ts        Bridge connection
+  main.ts        Bridge connection and auto-connect
   app.ts         Game loop orchestrator
   state.ts       Game state (snake, food, direction, score)
   game.ts        Game logic (tick, collision, turning)
-  renderer.ts    Persistent canvas, delta rendering, image push
+  renderer.ts    Text/image rendering, page layouts, frame push
   events.ts      Event normalisation + input dispatch
   layout.ts      Display and grid constants
+  logo.png       Splash screen logo (200×100)
+  gameover.png   Game over graphic (200×100)
 ```
 
 ## Setup
 
-Requires [even-dev](https://github.com/BxNxM/even-dev) (Unified Even Hub Simulator v0.0.2).
-
 ```bash
 npm install
-
-# Symlink into even-dev
-ln -s /path/to/snake-even-g2/g2 /path/to/even-dev/apps/snake
-
-# Run
-cd /path/to/even-dev
-APP_NAME=snake ./start-even.sh
+npm run dev
 ```
 
-Click **Connect glasses**, then tap on the glasses to start.
+### Run with even-dev simulator
+
+```bash
+cd /path/to/even-dev
+APP_PATH=/path/to/snake-even-g2 ./start-even.sh
+```
+
+### Run on real glasses
+
+Generate a QR code and scan it with the Even App:
+
+```bash
+npm run dev   # keep running
+npm run qr    # generates QR code for http://<your-ip>:5173
+```
+
+### Package for distribution
+
+```bash
+npm run pack  # builds and creates snake.ehpk
+```
 
 ## Tech stack
 
 - **G2 frontend:** TypeScript + [Even Hub SDK](https://www.npmjs.com/package/@evenrealities/even_hub_sdk)
 - **Build:** [Vite](https://vitejs.dev/)
+- **CLI:** [evenhub-cli](https://www.npmjs.com/package/@evenrealities/evenhub-cli)
