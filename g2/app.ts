@@ -57,7 +57,10 @@ export async function initApp(appBridge: EvenAppBridge): Promise<void> {
   await initDisplay()
 
   fetchBestScore().then(() => {
+    appendEventLog(`Score: fetched, highScore=${game.highScore}`)
     if (!game.running) void pushFrame()
+  }).catch((err) => {
+    appendEventLog(`Score: fetch failed: ${err}`)
   })
 
   appendEventLog('Snake: ready. Tap to start.')

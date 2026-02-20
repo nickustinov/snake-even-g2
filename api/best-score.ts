@@ -1,11 +1,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node'
-import Redis from 'ioredis'
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const Redis = require('ioredis')
 
 const REDIS_KEY = 'snake:best'
 
-let redis: Redis | null = null
+let redis: InstanceType<typeof Redis> | null = null
 
-function getRedis(): Redis {
+function getRedis(): InstanceType<typeof Redis> {
   if (!redis) {
     redis = new Redis(process.env.REDIS_URL!)
   }
