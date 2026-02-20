@@ -1,6 +1,6 @@
 const Redis = require('ioredis')
 
-const REDIS_KEY = 'snake:best'
+const REDIS_KEY = 'snake-even-g2:best'
 
 let redis = null
 
