@@ -15,17 +15,51 @@ export type GameState = {
   highScore: number
 }
 
-const HS_KEY = 'snake:highscore'
+const HS_KEY = 'snake:best'
 
-function loadHighScore(): number {
+function loadCachedHighScore(): number {
   const v = localStorage.getItem(HS_KEY)
   return v ? parseInt(v, 10) || 0 : 0
 }
 
-export function saveHighScore(score: number): void {
+function cacheHighScore(score: number): void {
+  localStorage.setItem(HS_KEY, String(score))
+}
+
+export async function fetchBestScore(): Promise<number> {
+  try {
+    const res = await fetch('/api/best-score')
+    const data = await res.json()
+    const score: number = data.score ?? 0
+    if (score > game.highScore) {
+      game.highScore = score
+      cacheHighScore(score)
+    }
+    return game.highScore
+  } catch {
+    return game.highScore
+  }
+}
+
+export async function submitScore(score: number): Promise<void> {
   if (score > game.highScore) {
     game.highScore = score
-    localStorage.setItem(HS_KEY, String(score))
+    cacheHighScore(score)
+  }
+  try {
+    const res = await fetch('/api/best-score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ score }),
+    })
+    const data = await res.json()
+    const best: number = data.score ?? score
+    if (best > game.highScore) {
+      game.highScore = best
+      cacheHighScore(best)
+    }
+  } catch {
+    // localStorage already updated above
   }
 }
 
@@ -68,7 +102,7 @@ export const game: GameState = {
   score: 0,
   running: false,
   over: false,
-  highScore: loadHighScore(),
+  highScore: loadCachedHighScore(),
 }
 
 // Initialize food after snake is set
