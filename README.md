@@ -6,6 +6,12 @@ Classic Snake game for [Even Realities G2](https://www.evenrealities.com/) smart
 
 Swipe to steer, eat food, grow longer. Global best score shared across all players via Redis.
 
+### Play now
+
+Scan this QR code in the Even Realities app (Even Hub page) to play on your G2 glasses with the shared global score system:
+
+<img src="qr.png" width="200" />
+
 <p>
   <img src="screenshot-splash.png" width="49%" />
   <img src="screenshot-game.png" width="49%" />
