@@ -1,20 +1,17 @@
-import type { VercelRequest, VercelResponse } from '@vercel/node'
-
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const Redis = require('ioredis')
 
 const REDIS_KEY = 'snake:best'
 
-let redis: InstanceType<typeof Redis> | null = null
+let redis = null
 
-function getRedis(): InstanceType<typeof Redis> {
+function getRedis() {
   if (!redis) {
-    redis = new Redis(process.env.REDIS_URL!)
+    redis = new Redis(process.env.REDIS_URL)
   }
   return redis
 }
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+module.exports = async function handler(req, res) {
   const client = getRedis()
 
   if (req.method === 'GET') {
@@ -29,7 +26,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(400).json({ error: 'Invalid score' })
     }
 
-    // Atomic: set only if the new score is higher than the current best
     const result = await client.eval(
       `local cur = tonumber(redis.call('GET', KEYS[1]) or '0')
        local proposed = tonumber(ARGV[1])
