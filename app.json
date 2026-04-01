@@ -1,8 +1,19 @@
 {
   "package_id": "com.nickustinov.snake",
+  "edition": "202601",
   "name": "snake",
   "version": "1.0.0",
   "description": "Snake game for Even G2 smart glasses",
   "author": "nickustinov",
-  "entrypoint": "index.html"
+  "entrypoint": "index.html",
+  "min_app_version": "2.0.0",
+  "min_sdk_version": "0.0.9",
+  "supported_languages": ["en"],
+  "permissions": [
+    {
+      "name": "network",
+      "desc": "n/a",
+      "whitelist": []
+    }
+  ]
 }

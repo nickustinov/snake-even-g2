@@ -1,5 +1,4 @@
 import type { EvenAppBridge } from '@evenrealities/even_hub_sdk'
-import { appendEventLog } from '../_shared/log'
 import { COLS, ROWS } from './layout'
 
 export type Dir = 'up' | 'down' | 'left' | 'right'
@@ -16,39 +15,9 @@ export type GameState = {
   highScore: number
 }
 
-export async function fetchBestScore(): Promise<number> {
-  appendEventLog('Score: fetching best score')
-  try {
-    const res = await fetch('/api/best-score')
-    appendEventLog(`Score: GET status=${res.status}`)
-    const data = await res.json()
-    appendEventLog(`Score: GET response=${JSON.stringify(data)}`)
-    const score: number = data.score ?? 0
-    if (score > game.highScore) {
-      game.highScore = score
-    }
-    return game.highScore
-  } catch (err) {
-    appendEventLog(`Score: GET failed: ${err}`)
-    throw err
-  }
-}
-
-export async function submitScore(score: number): Promise<void> {
-  appendEventLog(`Score: submitting score=${score}`)
-  try {
-    const res = await fetch('/api/best-score', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ score }),
-    })
-    appendEventLog(`Score: POST status=${res.status}`)
-    const data = await res.json()
-    appendEventLog(`Score: POST response=${JSON.stringify(data)}`)
-    game.highScore = data.score ?? score
-  } catch (err) {
-    appendEventLog(`Score: POST failed: ${err}`)
-    throw err
+export function updateHighScore(): void {
+  if (game.score > game.highScore) {
+    game.highScore = game.score
   }
 }
 

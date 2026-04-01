@@ -72,11 +72,7 @@ type PageMode = 'splash' | 'game' | 'gameover'
 let currentPage: PageMode = 'splash'
 
 function splashText(): string {
-  const parts: string[] = []
-  if (game.highScore > 0) parts.push(`Best: ${game.highScore}`)
-  parts.push('Tap to start')
-  parts.push('Swipe to steer')
-  return parts.join(' \u00B7 ')
+  return `Best: ${game.highScore} \u00B7 Tap to start \u00B7 Swipe to steer`
 }
 
 function buildImagePage(text: string, textX: number): object {
@@ -207,10 +203,7 @@ function renderGrid(): string {
 }
 
 function gameOverText(): string {
-  const parts = [`Score: ${game.score}`]
-  if (game.highScore > 0) parts.push(`Best: ${game.highScore}`)
-  parts.push('Tap to play again')
-  return parts.join(' \u00B7 ')
+  return `Score: ${game.score} \u00B7 Best: ${game.highScore} \u00B7 Tap to play again`
 }
 
 // ---------------------------------------------------------------------------
