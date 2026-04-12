@@ -14,7 +14,7 @@ import { game, bridge } from './state'
 // Unicode characters for the grid
 // ---------------------------------------------------------------------------
 
-const EMPTY = '\u25A1' // □ white square
+const EMPTY = '\u3000' // ideographic space (fullwidth, same width as CJK chars)
 const SNAKE = '\u25A6' // ▦ square with orthogonal crosshatch
 const FOOD = '\u25C6'  // ◆ black diamond
 
@@ -141,10 +141,14 @@ async function setupGameOverPage(): Promise<void> {
   await pushImage(gameoverBytes)
 }
 
+function scoreText(): string {
+  return `Score: ${game.score}  \u00B7  Best: ${game.highScore}`
+}
+
 async function setupGamePage(initialContent: string): Promise<void> {
   if (!bridge) return
   const config = {
-    containerTotalNum: 2,
+    containerTotalNum: 3,
     textObject: [
       new TextContainerProperty({
         containerID: 1,
@@ -165,6 +169,20 @@ async function setupGamePage(initialContent: string): Promise<void> {
         yPosition: 0,
         width: DISPLAY_WIDTH,
         height: DISPLAY_HEIGHT,
+        isEventCapture: 0,
+        paddingLength: 0,
+        borderWidth: 1,
+        borderColor: 10,
+        borderRadius: 4,
+      }),
+      new TextContainerProperty({
+        containerID: 3,
+        containerName: 'score',
+        content: scoreText(),
+        xPosition: 8,
+        yPosition: 0,
+        width: DISPLAY_WIDTH - 8,
+        height: 32,
         isEventCapture: 0,
         paddingLength: 0,
       }),
@@ -197,7 +215,7 @@ function renderGrid(): string {
         row += EMPTY
       }
     }
-    text += row + '\n'
+    text += (y < ROWS - 1) ? row + '\n' : row
   }
   return text
 }
@@ -245,16 +263,27 @@ export async function pushFrame(): Promise<void> {
       return
     }
 
-    // Game page – update grid
-    await bridge.textContainerUpgrade(
-      new TextContainerUpgrade({
-        containerID: 2,
-        containerName: 'screen',
-        contentOffset: 0,
-        contentLength: 2000,
-        content: renderGrid(),
-      }),
-    )
+    // Game page – update score and grid
+    await Promise.all([
+      bridge.textContainerUpgrade(
+        new TextContainerUpgrade({
+          containerID: 3,
+          containerName: 'score',
+          contentOffset: 0,
+          contentLength: 200,
+          content: scoreText(),
+        }),
+      ),
+      bridge.textContainerUpgrade(
+        new TextContainerUpgrade({
+          containerID: 2,
+          containerName: 'screen',
+          contentOffset: 0,
+          contentLength: 2000,
+          content: renderGrid(),
+        }),
+      ),
+    ])
   } finally {
     pushInFlight = false
   }

@@ -15,9 +15,23 @@ export type GameState = {
   highScore: number
 }
 
+const HIGH_SCORE_KEY = 'snake_high_score'
+
+export async function loadHighScore(): Promise<void> {
+  if (!bridge) return
+  const value = await bridge.getLocalStorage(HIGH_SCORE_KEY)
+  if (value) {
+    const parsed = parseInt(value, 10)
+    if (!isNaN(parsed)) game.highScore = parsed
+  }
+}
+
 export function updateHighScore(): void {
   if (game.score > game.highScore) {
     game.highScore = game.score
+    if (bridge) {
+      void bridge.setLocalStorage(HIGH_SCORE_KEY, String(game.highScore))
+    }
   }
 }
 

@@ -1,7 +1,7 @@
 import type { EvenAppBridge } from '@evenrealities/even_hub_sdk'
 import { appendEventLog } from '../_shared/log'
 import { TICK_MS } from './layout'
-import { game, setBridge, resetGame } from './state'
+import { game, setBridge, resetGame, loadHighScore } from './state'
 import { tick } from './game'
 import { initDisplay, pushFrame, showSplash } from './renderer'
 import { onEvenHubEvent, setStartGame } from './events'
@@ -48,6 +48,7 @@ export function startGame(): void {
 
 export async function initApp(appBridge: EvenAppBridge): Promise<void> {
   setBridge(appBridge)
+  await loadHighScore()
   setStartGame(startGame)
 
   appBridge.onEvenHubEvent((event) => {
