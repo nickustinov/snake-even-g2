@@ -28,6 +28,12 @@ async function gameLoop(): Promise<void> {
     const elapsed = Date.now() - start
     await sleep(Math.max(0, TICK_MS - elapsed))
   }
+
+  if (game.quit) {
+    game.quit = false
+    await showSplash()
+    appendEventLog('Snake: quit to menu')
+  }
 }
 
 export function startGame(): void {

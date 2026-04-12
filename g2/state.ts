@@ -12,6 +12,7 @@ export type GameState = {
   score: number
   running: boolean
   over: boolean
+  quit: boolean
   highScore: number
 }
 
@@ -65,6 +66,7 @@ export function resetGame(): void {
   game.score = 0
   game.running = true
   game.over = false
+  game.quit = false
 }
 
 export const game: GameState = {
@@ -74,6 +76,7 @@ export const game: GameState = {
   score: 0,
   running: false,
   over: false,
+  quit: false,
   highScore: 0,
 }
 
