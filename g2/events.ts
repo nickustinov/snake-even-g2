@@ -1,6 +1,6 @@
 import { OsEventTypeList, type EvenHubEvent } from '@evenrealities/even_hub_sdk'
 import { appendEventLog } from '../_shared/log'
-import { bridge, game } from './state'
+import { bridge, game, updateHighScore } from './state'
 import { turnLeft, turnRight } from './game'
 
 // Forward declaration – set by app.ts to avoid circular import
@@ -71,9 +71,11 @@ export function onEvenHubEvent(event: EvenHubEvent): void {
 
   switch (eventType) {
     case OsEventTypeList.DOUBLE_CLICK_EVENT:
-      // Even Hub submission requirement: double-tap on the root page
-      // (splash / game-over) must invoke the host exit dialogue.
-      if (!game.running) {
+      if (game.running) {
+        game.running = false
+        game.over = true
+        updateHighScore()
+      } else {
         void bridge?.shutDownPageContainer(1)
       }
       break
