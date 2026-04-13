@@ -1,5 +1,6 @@
 import type { EvenAppBridge } from '@evenrealities/even_hub_sdk'
 import { COLS, ROWS } from './layout'
+import type { LeaderboardEntry } from './scores-api'
 
 export type Dir = 'up' | 'down' | 'left' | 'right'
 
@@ -14,9 +15,13 @@ export type GameState = {
   over: boolean
   quit: boolean
   highScore: number
+  userInitials: string
+  userUid: number
+  leaderboard: LeaderboardEntry[]
 }
 
 const HIGH_SCORE_KEY = 'snake_high_score'
+const INITIALS_KEY = 'snake_initials'
 
 export async function loadHighScore(): Promise<void> {
   if (!bridge) return
@@ -33,6 +38,50 @@ export function updateHighScore(): void {
     if (bridge) {
       void bridge.setLocalStorage(HIGH_SCORE_KEY, String(game.highScore))
     }
+  }
+}
+
+export async function loadInitials(): Promise<void> {
+  if (!bridge) return
+  const value = await bridge.getLocalStorage(INITIALS_KEY)
+  if (value && value.length > 0) {
+    game.userInitials = value.toUpperCase().slice(0, 3)
+  }
+}
+
+export function saveInitials(initials: string): void {
+  const upper = initials.toUpperCase().slice(0, 3)
+  game.userInitials = upper
+  if (bridge) {
+    void bridge.setLocalStorage(INITIALS_KEY, upper)
+  }
+}
+
+export function deriveInitials(name: string): string {
+  if (!name || name.trim().length === 0) return 'AAA'
+  const parts = name.trim().split(/\s+/)
+  if (parts.length >= 3) {
+    return (parts[0][0] + parts[1][0] + parts[2][0]).toUpperCase()
+  }
+  if (parts.length === 2) {
+    return (parts[0][0] + parts[1][0] + (parts[1][1] || parts[0][1] || 'A')).toUpperCase()
+  }
+  return parts[0].slice(0, 3).toUpperCase().padEnd(3, 'A')
+}
+
+export async function loadUserInfo(): Promise<void> {
+  if (!bridge) return
+  try {
+    const user = await bridge.getUserInfo()
+    if (user.uid) game.userUid = user.uid
+    // Only set initials from name if none saved yet
+    if (game.userInitials === 'AAA' && user.name) {
+      const derived = deriveInitials(user.name)
+      game.userInitials = derived
+      void bridge.setLocalStorage(INITIALS_KEY, derived)
+    }
+  } catch {
+    // User info not available, keep defaults
   }
 }
 
@@ -78,6 +127,9 @@ export const game: GameState = {
   over: false,
   quit: false,
   highScore: 0,
+  userInitials: 'AAA',
+  userUid: 0,
+  leaderboard: [],
 }
 
 // Initialize food after snake is set

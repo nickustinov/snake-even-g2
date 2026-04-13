@@ -10,8 +10,21 @@
 <body>
 
 <div id="app">
-  <h1>Snake for Even G2</h1>
-  <div id="status">Snake ready</div>
+  <div id="arcade-header">
+    <div id="title">SNAKE</div>
+    <div id="status">connecting...</div>
+  </div>
+
+  <div id="initials-panel" style="display:none">
+    <label>YOUR INITIALS</label>
+    <div id="initials-input">
+      <input id="char0" type="text" maxlength="1" value="A" />
+      <input id="char1" type="text" maxlength="1" value="A" />
+      <input id="char2" type="text" maxlength="1" value="A" />
+    </div>
+    <button id="save-initials">SAVE</button>
+  </div>
+
   <pre id="event-log" style="display:none"></pre>
 </div>
 

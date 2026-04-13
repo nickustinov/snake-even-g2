@@ -1,17 +1,108 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+:root {
+  --green: #33ff33;
+  --green-dim: #1a8a1a;
+  --bg: #0a0a0a;
+}
+
 body {
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'Press Start 2P', monospace;
+  background: var(--bg);
+  color: var(--green);
   max-width: 480px;
   margin: 0 auto;
   padding: 16px;
+  min-height: 100vh;
 }
 
-#app h1 {
-  font-size: 1.25rem;
-  font-weight: 600;
-  margin-bottom: 4px;
+#app {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+#arcade-header {
+  text-align: center;
+  padding: 20px 0;
+  border: 2px solid var(--green-dim);
+  border-radius: 8px;
+}
+
+#title {
+  font-size: 1.5rem;
+  letter-spacing: 0.3em;
+  margin-bottom: 12px;
+  text-shadow: 0 0 10px var(--green);
 }
 
 #status {
-  color: var(--color-tc-2, #7b7b7b);
-  font-size: 0.875rem;
+  font-size: 0.6rem;
+  color: var(--green-dim);
+  text-transform: uppercase;
+}
+
+#initials-panel {
+  text-align: center;
+  padding: 20px;
+  border: 2px solid var(--green-dim);
+  border-radius: 8px;
+}
+
+#initials-panel label {
+  display: block;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  margin-bottom: 16px;
+  color: var(--green-dim);
+}
+
+#initials-input {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+#initials-input input {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 2rem;
+  width: 56px;
+  height: 64px;
+  text-align: center;
+  background: transparent;
+  border: 2px solid var(--green-dim);
+  border-radius: 6px;
+  color: var(--green);
+  text-transform: uppercase;
+  caret-color: var(--green);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#initials-input input:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 12px var(--green-dim);
+}
+
+#save-initials {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.7rem;
+  padding: 10px 24px;
+  background: transparent;
+  border: 2px solid var(--green-dim);
+  border-radius: 6px;
+  color: var(--green);
+  cursor: pointer;
+  letter-spacing: 0.15em;
+  transition: background 0.2s, border-color 0.2s;
+}
+
+#save-initials:hover {
+  border-color: var(--green);
+  background: rgba(51, 255, 51, 0.1);
+}
+
+#save-initials:active {
+  background: rgba(51, 255, 51, 0.2);
 }
