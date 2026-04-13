@@ -1,5 +1,7 @@
 import {
   CreateStartUpPageContainer,
+  ImageContainerProperty,
+  ImageRawDataUpdate,
   RebuildPageContainer,
   TextContainerProperty,
   TextContainerUpgrade,
@@ -29,7 +31,6 @@ function toFullwidth(str: string): string {
 
 function fwPad(str: string, width: number, align: 'left' | 'right' | 'center' = 'left'): string {
   const fw = toFullwidth(str)
-  // Count fullwidth characters (each counts as 1 column in our grid)
   const len = [...fw].length
   const pad = Math.max(0, width - len)
   if (align === 'right') return EMPTY.repeat(pad) + fw
@@ -50,121 +51,74 @@ function blankRow(): string {
 }
 
 // ---------------------------------------------------------------------------
-// Arcade screen builders
+// Logo image
 // ---------------------------------------------------------------------------
 
-function formatRank(n: number): string {
-  if (n < 10) return ` ${n}`
-  return `${n}`
+const IMG_W = 190
+const IMG_H = 47
+const IMG_X = Math.floor((DISPLAY_WIDTH - IMG_W) / 2)
+const IMG_Y = 14
+
+let logoBytes: number[] | null = null
+
+const logoUrl = new URL('./logo.png', import.meta.url).href
+
+async function loadLogo(): Promise<void> {
+  if (logoBytes) return
+  try {
+    const res = await fetch(logoUrl)
+    const buf = await res.arrayBuffer()
+    logoBytes = Array.from(new Uint8Array(buf))
+  } catch {
+    appendEventLog('Snake: failed to load logo.png')
+  }
 }
 
-function formatScore(score: number, width: number): string {
-  const s = String(score)
-  return s.length >= width ? s.slice(0, width) : ' '.repeat(width - s.length) + s
+async function pushImage(bytes: number[] | null): Promise<void> {
+  if (!bridge || !bytes) return
+  await bridge.updateImageRawData(
+    new ImageRawDataUpdate({
+      containerID: 2,
+      containerName: 'img',
+      imageData: bytes,
+    }),
+  )
 }
 
-function buildLeaderboardRows(entries: LeaderboardEntry[]): string[] {
-  // Two columns: ranks 1-5 left, ranks 6-10 right
-  // Each entry: rank(2) + name(3) + score(4) = 9 chars
-  // Two entries + 2 separator + padding = 9 + 2 + 9 + padding = 20 + 8 = 28
-  const rows: string[] = []
-  const COL_W = 12 // chars per column
+// ---------------------------------------------------------------------------
+// Arcade screen builders (fullwidth text for the lower portion)
+// ---------------------------------------------------------------------------
 
+const PLACEHOLDER_NAMES = ['AAA', 'BBB', 'CCC', 'DDD', 'EEE']
+
+function zeroPad(score: number): string {
+  return String(score).padStart(3, '0')
+}
+
+function buildScoreRows(): string[] {
+  const top5: LeaderboardEntry[] = []
   for (let i = 0; i < 5; i++) {
-    const left = entries[i]
-    const right = entries[i + 5]
-
-    let leftStr = ''
-    if (left) {
-      leftStr = `${formatRank(i + 1)} ${left.name.padEnd(3)}${formatScore(left.score, 5)}`
+    if (i < game.leaderboard.length) {
+      top5.push(game.leaderboard[i])
+    } else {
+      top5.push({ name: PLACEHOLDER_NAMES[i], score: 0, uid: 0 })
     }
-
-    let rightStr = ''
-    if (right) {
-      rightStr = `${formatRank(i + 6)} ${right.name.padEnd(3)}${formatScore(right.score, 5)}`
-    }
-
-    // Pad each column and combine
-    const leftFw = fwPad(leftStr, COL_W, 'left')
-    const rightFw = right ? fwPad(rightStr, COLS - COL_W, 'left') : EMPTY.repeat(COLS - COL_W)
-    rows.push(leftFw + rightFw)
   }
-
-  return rows
+  return top5.map((e, i) =>
+    fwRow(`${i + 1}  ${e.name.padEnd(3)}  ${zeroPad(e.score)}`),
+  )
 }
 
-function buildSplashScreen(): string {
-  const lb = game.leaderboard
+function buildMenuText(): string {
   const rows: string[] = []
-
-  // Row 0: title
-  rows.push(fwRow('* SNAKE *'))
-
-  if (lb.length > 0) {
-    // Row 1: subtitle
-    rows.push(fwRow('HI SCORES'))
-    // Rows 2-6: leaderboard (two columns)
-    rows.push(...buildLeaderboardRows(lb))
-    // Row 7: blank or your best
-    rows.push(blankRow())
-    // Row 8: your info
-    const bestStr = `BEST:${game.highScore} YOU:${game.userInitials}`
-    rows.push(fwRow(bestStr))
+  if (game.over) {
+    rows.push(fwRow(`SCORE ${zeroPad(game.score)}  BEST ${zeroPad(game.highScore)}`))
   } else {
-    // No leaderboard yet
-    rows.push(blankRow())
-    rows.push(fwRow(`BEST: ${game.highScore}`))
-    rows.push(blankRow())
-    rows.push(blankRow())
-    rows.push(blankRow())
-    rows.push(blankRow())
-    rows.push(fwRow(`YOU: ${game.userInitials}`))
+    rows.push(fwRow(`BEST ${zeroPad(game.highScore)}`))
   }
-
-  // Row 9: action hint
-  rows.push(fwRow('TAP TO START'))
-
-  // Pad to exactly ROWS rows
-  while (rows.length < ROWS) rows.splice(rows.length - 1, 0, blankRow())
-
-  // Join without trailing newline on last row
-  return rows.map((r, i) => i < rows.length - 1 ? r + '\n' : r).join('')
-}
-
-function buildGameOverScreen(): string {
-  const lb = game.leaderboard
-  const rows: string[] = []
-
-  // Row 0: game over
-  rows.push(fwRow('GAME OVER'))
-
-  // Row 1: your score
-  rows.push(fwRow(`SCORE: ${game.score}`))
-
-  if (lb.length > 0) {
-    // Rows 2-6: leaderboard
-    rows.push(...buildLeaderboardRows(lb))
-    // Row 7: blank
-    rows.push(blankRow())
-  } else {
-    rows.push(blankRow())
-    rows.push(fwRow(`BEST: ${game.highScore}`))
-    rows.push(blankRow())
-    rows.push(blankRow())
-    rows.push(blankRow())
-    rows.push(blankRow())
-  }
-
-  // Row 8: your info
-  const bestStr = `BEST:${game.highScore} YOU:${game.userInitials}`
-  rows.push(fwRow(bestStr))
-
-  // Row 9: action hint
-  rows.push(fwRow('TAP TO PLAY'))
-
-  while (rows.length < ROWS) rows.splice(rows.length - 1, 0, blankRow())
-
-  return rows.map((r, i) => i < rows.length - 1 ? r + '\n' : r).join('')
+  rows.push(blankRow())
+  rows.push(...buildScoreRows())
+  return rows.join('\n')
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +128,15 @@ function buildGameOverScreen(): string {
 let startupRendered = false
 let pageSetUp = false
 
-type PageMode = 'splash' | 'game' | 'gameover'
-let currentPage: PageMode = 'splash'
+type PageMode = 'menu' | 'game'
+let currentPage: PageMode = 'menu'
 
-function buildTextPage(content: string): object {
+const TEXT_Y = IMG_Y + IMG_H + 4
+const TEXT_H = DISPLAY_HEIGHT - TEXT_Y
+
+function buildImagePage(text: string): object {
   return {
-    containerTotalNum: 2,
+    containerTotalNum: 3,
     textObject: [
       new TextContainerProperty({
         containerID: 1,
@@ -191,29 +148,37 @@ function buildTextPage(content: string): object {
         height: DISPLAY_HEIGHT,
         isEventCapture: 1,
         paddingLength: 0,
+        borderWidth: 0,
       }),
       new TextContainerProperty({
-        containerID: 2,
-        containerName: 'screen',
-        content,
+        containerID: 3,
+        containerName: 'info',
+        content: text,
         xPosition: 0,
-        yPosition: 0,
+        yPosition: TEXT_Y,
         width: DISPLAY_WIDTH,
-        height: DISPLAY_HEIGHT,
+        height: TEXT_H,
         isEventCapture: 0,
         paddingLength: 0,
-        borderWidth: 1,
-        borderColor: 10,
-        borderRadius: 4,
+        borderWidth: 0,
+      }),
+    ],
+    imageObject: [
+      new ImageContainerProperty({
+        containerID: 2,
+        containerName: 'img',
+        xPosition: IMG_X,
+        yPosition: IMG_Y,
+        width: IMG_W,
+        height: IMG_H,
       }),
     ],
   }
 }
 
-async function setupSplashPage(): Promise<void> {
+async function setupMenuPage(): Promise<void> {
   if (!bridge) return
-  const content = buildSplashScreen()
-  const config = buildTextPage(content)
+  const config = buildImagePage(buildMenuText())
 
   if (!startupRendered) {
     await bridge.createStartUpPageContainer(new CreateStartUpPageContainer(config))
@@ -222,22 +187,13 @@ async function setupSplashPage(): Promise<void> {
     await bridge.rebuildPageContainer(new RebuildPageContainer(config))
   }
   pageSetUp = true
-  currentPage = 'splash'
-}
+  currentPage = 'menu'
 
-async function setupGameOverPage(): Promise<void> {
-  if (!bridge) return
-  const content = buildGameOverScreen()
-  const config = buildTextPage(content)
-  await bridge.rebuildPageContainer(new RebuildPageContainer(config))
-  pageSetUp = true
-  currentPage = 'gameover'
+  await pushImage(logoBytes)
 }
 
 function scoreText(): string {
-  const globalHi = game.leaderboard.length > 0 ? game.leaderboard[0].score : game.highScore
-  const hi = Math.max(globalHi, game.highScore)
-  return `Score: ${game.score}  \u00B7  Hi: ${hi}`
+  return zeroPad(game.score)
 }
 
 async function setupGamePage(initialContent: string): Promise<void> {
@@ -326,29 +282,28 @@ export async function pushFrame(): Promise<void> {
   if (pushInFlight) return
   pushInFlight = true
   try {
-    // Transition from splash/gameover to game page
-    if (currentPage !== 'game' && game.running) {
+    // Transition from menu to game page
+    if (currentPage === 'menu' && game.running) {
       const text = renderGrid()
       await setupGamePage(text)
       return
     }
 
-    // Transition from game to game over page
-    if (currentPage === 'game' && game.over) {
-      await setupGameOverPage()
+    // Transition from game to menu (game over or quit)
+    if (currentPage === 'game' && (game.over || !game.running)) {
+      await setupMenuPage()
       return
     }
 
-    // On splash/gameover page, update the screen text
-    if (currentPage === 'splash' || currentPage === 'gameover') {
-      const text = currentPage === 'splash' ? buildSplashScreen() : buildGameOverScreen()
+    // On menu page, update the info text
+    if (currentPage === 'menu') {
       await bridge.textContainerUpgrade(
         new TextContainerUpgrade({
-          containerID: 2,
-          containerName: 'screen',
+          containerID: 3,
+          containerName: 'info',
           contentOffset: 0,
           contentLength: 2000,
-          content: text,
+          content: buildMenuText(),
         }),
       )
       return
@@ -381,7 +336,7 @@ export async function pushFrame(): Promise<void> {
 }
 
 export async function showSplash(): Promise<void> {
-  await setupSplashPage()
+  await setupMenuPage()
 }
 
 // ---------------------------------------------------------------------------
@@ -389,7 +344,8 @@ export async function showSplash(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 export async function initDisplay(): Promise<void> {
-  await setupSplashPage()
+  await loadLogo()
+  await setupMenuPage()
   appendEventLog('Snake: display initialized')
 }
 

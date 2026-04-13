@@ -1,5 +1,5 @@
 import { COLS, ROWS } from './layout'
-import { game, spawnFood, updateHighScore } from './state'
+import { game, spawnFood, updateHighScore, insertCurrentScore } from './state'
 import type { Dir, Pos } from './state'
 
 const RIGHT: Record<Dir, Dir> = { up: 'right', right: 'down', down: 'left', left: 'up' }
@@ -45,6 +45,7 @@ export function tick(): TickResult {
     game.running = false
     game.over = true
     updateHighScore()
+    insertCurrentScore()
     return { newHead, removedTail: null, ate: false, died: true, newFood: null }
   }
 

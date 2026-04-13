@@ -1,5 +1,5 @@
 const SCORES_URL = 'https://scores.g2.ninja'
-const APP_TOKEN = 'g2-scores-dev-token'
+const APP_TOKEN = import.meta.env.VITE_SCORES_TOKEN || ''
 
 export type LeaderboardEntry = {
   name: string

@@ -6,7 +6,7 @@ function updateStatus(text: string) {
   if (el) el.textContent = text
 }
 
-function setupInitialsUI(getInitials: () => string, setInitials: (v: string) => void) {
+function setupInitialsUI(getInitials: () => string, setInitials: (v: string) => void, onSave: () => void) {
   const panel = document.getElementById('initials-panel')!
   const inputs = [
     document.getElementById('char0') as HTMLInputElement,
@@ -38,9 +38,10 @@ function setupInitialsUI(getInitials: () => string, setInitials: (v: string) => 
   })
 
   saveBtn.addEventListener('click', () => {
-    const initials = inputs.map((inp) => inp.value || 'A').join('')
-    setInitials(initials.toUpperCase())
-    updateStatus(`initials set: ${initials.toUpperCase()}`)
+    const initials = inputs.map((inp) => inp.value || 'A').join('').toUpperCase()
+    setInitials(initials)
+    onSave()
+    updateStatus(`initials set: ${initials}`)
   })
 
   panel.style.display = ''
@@ -58,9 +59,11 @@ async function boot() {
 
   // Set up initials UI after connection
   const stateModule = await import('../g2/state')
+  const rendererModule = await import('../g2/renderer')
   setupInitialsUI(
     () => stateModule.game.userInitials,
     (v) => stateModule.saveInitials(v),
+    () => void rendererModule.pushFrame(),
   )
 }
 
