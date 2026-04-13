@@ -23,38 +23,24 @@ export type GameState = {
 const HIGH_SCORE_KEY = 'snake_high_score'
 const INITIALS_KEY = 'snake_initials'
 
-function localGet(key: string): string | null {
-  try { return localStorage.getItem(key) } catch { return null }
-}
-function localSet(key: string, value: string): void {
-  try { localStorage.setItem(key, value) } catch { /* noop */ }
-}
-
 export async function loadHighScore(): Promise<void> {
-  const local = localGet(HIGH_SCORE_KEY)
-  if (local) {
-    const p = parseInt(local, 10)
-    if (!isNaN(p)) game.highScore = p
-  }
   if (!bridge) return
   const value = await bridge.getLocalStorage(HIGH_SCORE_KEY)
   if (value) {
     const parsed = parseInt(value, 10)
-    if (!isNaN(parsed) && parsed > game.highScore) game.highScore = parsed
+    if (!isNaN(parsed)) game.highScore = parsed
   }
 }
 
 export function updateHighScore(): void {
   if (game.score > game.highScore) {
     game.highScore = game.score
-    localSet(HIGH_SCORE_KEY, String(game.highScore))
     if (bridge) {
       void bridge.setLocalStorage(HIGH_SCORE_KEY, String(game.highScore))
     }
   }
 }
 
-// Insert current score into the leaderboard in the right position
 export function insertCurrentScore(): void {
   if (game.score <= 0) return
   game.leaderboard.push({ name: game.userInitials, score: game.score, uid: game.userUid })
@@ -62,12 +48,6 @@ export function insertCurrentScore(): void {
 }
 
 export async function loadInitials(): Promise<void> {
-  // Browser fallback first
-  const local = localGet(INITIALS_KEY)
-  if (local && local.length > 0) {
-    game.userInitials = local.toUpperCase().slice(0, 3)
-  }
-  // Bridge overwrites if available
   if (!bridge) return
   const value = await bridge.getLocalStorage(INITIALS_KEY)
   if (value && value.length > 0) {
@@ -78,7 +58,6 @@ export async function loadInitials(): Promise<void> {
 export function saveInitials(initials: string): void {
   const upper = initials.toUpperCase().slice(0, 3)
   game.userInitials = upper
-  localSet(INITIALS_KEY, upper)
   if (bridge) {
     void bridge.setLocalStorage(INITIALS_KEY, upper)
   }
@@ -101,14 +80,13 @@ export async function loadUserInfo(): Promise<void> {
   try {
     const user = await bridge.getUserInfo()
     if (user.uid) game.userUid = user.uid
-    // Only set initials from name if none saved yet
     if (game.userInitials === 'AAA' && user.name) {
       const derived = deriveInitials(user.name)
       game.userInitials = derived
       void bridge.setLocalStorage(INITIALS_KEY, derived)
     }
   } catch {
-    // User info not available, keep defaults
+    // User info not available
   }
 }
 
@@ -159,7 +137,6 @@ export const game: GameState = {
   leaderboard: [],
 }
 
-// Initialize food after snake is set
 game.food = spawnFood(game.snake)
 
 export let bridge: EvenAppBridge | null = null

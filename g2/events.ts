@@ -10,9 +10,10 @@ export function setStartGame(fn: () => void): void {
   startGameFn = fn
 }
 
-// Scroll cooldown
+// Cooldowns
 const SCROLL_COOLDOWN_MS = 200
 let lastScrollTime = 0
+let lastDoubleTapTime = 0
 
 function scrollThrottled(): boolean {
   const now = Date.now()
@@ -70,7 +71,10 @@ export function onEvenHubEvent(event: EvenHubEvent): void {
   appendEventLog(`RESOLVED: type=${String(eventType)} (${typeof eventType}) running=${game.running} dir=${game.dir}`)
 
   switch (eventType) {
-    case OsEventTypeList.DOUBLE_CLICK_EVENT:
+    case OsEventTypeList.DOUBLE_CLICK_EVENT: {
+      const now = Date.now()
+      if (now - lastDoubleTapTime < 1000) break
+      lastDoubleTapTime = now
       if (game.running) {
         game.running = false
         game.quit = true
@@ -79,6 +83,7 @@ export function onEvenHubEvent(event: EvenHubEvent): void {
         void bridge?.shutDownPageContainer(1)
       }
       break
+    }
 
     case OsEventTypeList.CLICK_EVENT:
       if (!game.running) {

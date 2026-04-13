@@ -80,6 +80,11 @@ body {
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+#initials-input input::placeholder {
+  color: var(--green-dim);
+  opacity: 1;
+}
+
 #initials-input input:focus {
   border-color: var(--green);
   box-shadow: 0 0 12px var(--green-dim);

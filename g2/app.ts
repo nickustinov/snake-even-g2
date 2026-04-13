@@ -1,9 +1,9 @@
 import type { EvenAppBridge } from '@evenrealities/even_hub_sdk'
 import { appendEventLog } from '../_shared/log'
 import { TICK_MS } from './layout'
-import { game, setBridge, resetGame, loadHighScore, loadInitials, loadUserInfo, updateHighScore } from './state'
+import { game, setBridge, resetGame, loadHighScore, loadInitials, loadUserInfo, updateHighScore, insertCurrentScore } from './state'
 import { tick } from './game'
-import { initDisplay, pushFrame, showSplash } from './renderer'
+import { initDisplay, showSplash, showGame, showGameOver, updateGame } from './renderer'
 import { onEvenHubEvent, setStartGame } from './events'
 import { fetchLeaderboard, submitScore } from './scores-api'
 
@@ -15,77 +15,56 @@ async function refreshLeaderboard(): Promise<void> {
   game.leaderboard = await fetchLeaderboard('snake')
 }
 
-async function submitAndRefresh(): Promise<void> {
-  if (game.score <= 0) return
-  const updated = await submitScore('snake', game.userInitials, game.score, game.userUid)
-  if (updated.length > 0) game.leaderboard = updated
-}
-
 async function gameLoop(): Promise<void> {
-  appendEventLog('Snake: game loop started')
   while (game.running) {
     const start = Date.now()
-
     const result = tick()
 
     if (result.died) {
-      await pushFrame()
-      appendEventLog(`Snake: game over, score=${game.score}`)
-      // Submit score and refresh leaderboard in background
-      void submitAndRefresh().then(() => pushFrame())
+      // Show game over screen, then submit score in background
+      await showGameOver()
+      void submitScore('snake', game.userInitials, game.score, game.userUid)
+        .then((scores) => { if (scores.length > 0) game.leaderboard = scores })
+        .then(() => showGameOver())
       break
     }
 
-    await pushFrame()
-
+    await updateGame()
     const elapsed = Date.now() - start
-    await sleep(Math.max(0, TICK_MS - elapsed))
+    const remaining = Math.max(0, TICK_MS - elapsed)
+    if (remaining > 0 && game.running) await sleep(remaining)
   }
 
   if (game.quit) {
     game.quit = false
-    await refreshLeaderboard()
     await showSplash()
-    appendEventLog('Snake: quit to menu')
+    void refreshLeaderboard().then(() => {
+      if (!game.running) void showSplash()
+    })
   }
 }
 
 export function startGame(): void {
   if (game.running) return
-  if (game.over) {
-    // Game over -> return to splash screen
-    game.over = false
-    void refreshLeaderboard().then(() => showSplash())
-    appendEventLog('Snake: back to splash')
-    return
-  }
+  game.over = false
   resetGame()
-  void pushFrame().then(() => {
-    void gameLoop()
-  })
-  appendEventLog('Snake: new game started')
+  void showGame().then(() => gameLoop())
 }
 
 export async function initApp(appBridge: EvenAppBridge): Promise<void> {
   setBridge(appBridge)
 
-  // Load local state and user info in parallel
-  await Promise.all([
-    loadHighScore(),
-    loadInitials(),
-    loadUserInfo(),
-  ])
-
-  // Fetch global leaderboard (non-blocking for display)
-  void refreshLeaderboard().then(() => pushFrame())
+  await Promise.all([loadHighScore(), loadInitials(), loadUserInfo()])
 
   setStartGame(startGame)
-
-  appBridge.onEvenHubEvent((event) => {
-    onEvenHubEvent(event)
-  })
+  appBridge.onEvenHubEvent((event) => onEvenHubEvent(event))
 
   await initDisplay()
 
-  appendEventLog('Snake: ready. Tap to start.')
+  // Fetch leaderboard in background, refresh splash only if still on splash
+  void refreshLeaderboard().then(() => {
+    if (!game.running && !game.over) void showSplash()
+  })
+
+  appendEventLog('Snake: ready')
 }
