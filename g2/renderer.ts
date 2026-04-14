@@ -197,14 +197,30 @@ function renderGrid(): string {
 
 let startupDone = false
 
+// Serialize all page rebuilds so the SDK never sees concurrent calls
+let pageQueue: Promise<void> = Promise.resolve()
+let screenGen = 0
+
+export function nextScreenGen(): number {
+  return ++screenGen
+}
+
+export function currentScreenGen(): number {
+  return screenGen
+}
+
 async function showPage(config: object): Promise<void> {
   if (!bridge) return
-  if (!startupDone) {
-    await bridge.createStartUpPageContainer(new CreateStartUpPageContainer(config))
-    startupDone = true
-  } else {
-    await bridge.rebuildPageContainer(new RebuildPageContainer(config))
-  }
+  const task = pageQueue.then(async () => {
+    if (!startupDone) {
+      await bridge!.createStartUpPageContainer(new CreateStartUpPageContainer(config))
+      startupDone = true
+    } else {
+      await bridge!.rebuildPageContainer(new RebuildPageContainer(config))
+    }
+  })
+  pageQueue = task.catch(() => {})
+  await task
 }
 
 // ---------------------------------------------------------------------------

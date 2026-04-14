@@ -3,7 +3,7 @@ import { appendEventLog } from '../_shared/log'
 import { TICK_MS } from './layout'
 import { game, setBridge, resetGame, loadHighScore, loadInitials, loadUserInfo, updateHighScore, insertCurrentScore } from './state'
 import { tick } from './game'
-import { initDisplay, showSplash, showGame, showGameOver, updateGame } from './renderer'
+import { initDisplay, showSplash, showGame, showGameOver, updateGame, nextScreenGen, currentScreenGen } from './renderer'
 import { onEvenHubEvent, setStartGame } from './events'
 import { fetchLeaderboard, submitScore } from './scores-api'
 
@@ -22,10 +22,11 @@ async function gameLoop(): Promise<void> {
 
     if (result.died) {
       // Show game over screen, then submit score in background
+      const gen = nextScreenGen()
       await showGameOver()
       void submitScore('snake', game.userInitials, game.score, game.userUid)
         .then((scores) => { if (scores.length > 0) game.leaderboard = scores })
-        .then(() => showGameOver())
+        .then(() => { if (currentScreenGen() === gen) return showGameOver() })
       break
     }
 
@@ -37,9 +38,10 @@ async function gameLoop(): Promise<void> {
 
   if (game.quit) {
     game.quit = false
+    const gen = nextScreenGen()
     await showSplash()
     void refreshLeaderboard().then(() => {
-      if (!game.running) void showSplash()
+      if (currentScreenGen() === gen) void showSplash()
     })
   }
 }
@@ -48,6 +50,7 @@ export function startGame(): void {
   if (game.running) return
   game.over = false
   resetGame()
+  nextScreenGen()
   void showGame().then(() => gameLoop())
 }
 
@@ -62,8 +65,9 @@ export async function initApp(appBridge: EvenAppBridge): Promise<void> {
   await initDisplay()
 
   // Fetch leaderboard in background, refresh splash only if still on splash
+  const gen = currentScreenGen()
   void refreshLeaderboard().then(() => {
-    if (!game.running && !game.over) void showSplash()
+    if (currentScreenGen() === gen) void showSplash()
   })
 
   appendEventLog('Snake: ready')
