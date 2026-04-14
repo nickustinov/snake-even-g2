@@ -3,7 +3,7 @@ import { appendEventLog } from '../_shared/log'
 import { TICK_MS } from './layout'
 import { game, setBridge, resetGame, loadHighScore, loadInitials, loadUserInfo, updateHighScore, insertCurrentScore } from './state'
 import { tick } from './game'
-import { initDisplay, showSplash, showGame, showGameOver, updateGame, nextScreenGen, currentScreenGen } from './renderer'
+import { initDisplay, showSplash, showGame, showGameOver, blinkGameOver, updateGameOverInfo, updateGame, nextScreenGen, currentScreenGen } from './renderer'
 import { onEvenHubEvent, setStartGame } from './events'
 import { fetchLeaderboard, submitScore } from './scores-api'
 
@@ -21,12 +21,13 @@ async function gameLoop(): Promise<void> {
     const result = tick()
 
     if (result.died) {
-      // Show game over screen, then submit score in background
+      // Show game over screen, blink title, then submit score in background
       const gen = nextScreenGen()
       await showGameOver()
+      void blinkGameOver(gen)
       void submitScore('snake', game.userInitials, game.score, game.userUid)
         .then((scores) => { if (scores.length > 0) game.leaderboard = scores })
-        .then(() => { if (currentScreenGen() === gen) return showGameOver() })
+        .then(() => { if (currentScreenGen() === gen) return updateGameOverInfo() })
       break
     }
 

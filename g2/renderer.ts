@@ -11,6 +11,10 @@ import { DISPLAY_WIDTH, DISPLAY_HEIGHT, COLS, ROWS } from './layout'
 import { game, bridge } from './state'
 import type { LeaderboardEntry } from './scores-api'
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 // ---------------------------------------------------------------------------
 // Characters
 // ---------------------------------------------------------------------------
@@ -128,24 +132,32 @@ function splashConfig(): object {
   }
 }
 
-function gameOverConfig(): object {
-  const rows = [
-    fwRow('GAME OVER'),
-    EMPTY.repeat(COLS),
+const TITLE_H = 32
+
+function gameOverInfoText(): string {
+  const infoRows = [
     fwRow(`SCORE ${zeroPad(game.score)}  BEST ${zeroPad(game.highScore)}`),
     EMPTY.repeat(COLS),
     ...scoreRows(),
   ]
-  const text = rows.map((r, i) => i < rows.length - 1 ? r + '\n' : r).join('')
+  return infoRows.map((r, i) => i < infoRows.length - 1 ? r + '\n' : r).join('')
+}
 
+function gameOverConfig(): object {
   return {
-    containerTotalNum: 2,
+    containerTotalNum: 3,
     textObject: [
       evtContainer(),
       new TextContainerProperty({
-        containerID: 3, containerName: 'info', content: text,
+        containerID: 2, containerName: 'title', content: fwRow('GAME OVER'),
         xPosition: 0, yPosition: 0,
-        width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT,
+        width: DISPLAY_WIDTH, height: TITLE_H,
+        isEventCapture: 0, paddingLength: 0, borderWidth: 0,
+      }),
+      new TextContainerProperty({
+        containerID: 3, containerName: 'info', content: gameOverInfoText(),
+        xPosition: 0, yPosition: TITLE_H * 2,
+        width: DISPLAY_WIDTH, height: DISPLAY_HEIGHT - TITLE_H * 2,
         isEventCapture: 0, paddingLength: 0, borderWidth: 0,
       }),
     ],
@@ -238,6 +250,43 @@ export async function showSplash(): Promise<void> {
 
 export async function showGameOver(): Promise<void> {
   await showPage(gameOverConfig())
+}
+
+export async function updateGameOverInfo(): Promise<void> {
+  if (!bridge) return
+  await bridge.textContainerUpgrade(new TextContainerUpgrade({
+    containerID: 3, containerName: 'info',
+    contentOffset: 0, contentLength: 2000, content: gameOverInfoText(),
+  }))
+}
+
+export async function blinkGameOver(gen: number): Promise<void> {
+  if (!bridge) return
+  const titleOn = fwRow('GAME OVER')
+  const titleOff = EMPTY.repeat(COLS)
+  const restart = fwRow('TAP TO RESTART')
+
+  for (let i = 0; i < 3; i++) {
+    await sleep(500)
+    if (currentScreenGen() !== gen) return
+    await bridge.textContainerUpgrade(new TextContainerUpgrade({
+      containerID: 2, containerName: 'title',
+      contentOffset: 0, contentLength: 200, content: titleOff,
+    }))
+    await sleep(500)
+    if (currentScreenGen() !== gen) return
+    await bridge.textContainerUpgrade(new TextContainerUpgrade({
+      containerID: 2, containerName: 'title',
+      contentOffset: 0, contentLength: 200, content: titleOn,
+    }))
+  }
+
+  await sleep(500)
+  if (currentScreenGen() !== gen) return
+  await bridge.textContainerUpgrade(new TextContainerUpgrade({
+    containerID: 2, containerName: 'title',
+    contentOffset: 0, contentLength: 200, content: restart,
+  }))
 }
 
 export async function showGame(): Promise<void> {
