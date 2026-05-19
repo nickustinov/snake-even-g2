@@ -2,7 +2,7 @@
   "package_id": "com.nickustinov.snake",
   "edition": "202601",
   "name": "snake",
-  "version": "1.1.0",
+  "version": "1.2.1",
   "description": "Snake game for Even G2 smart glasses",
   "author": "nickustinov",
   "entrypoint": "index.html",
@@ -12,8 +12,14 @@
   "permissions": [
     {
       "name": "network",
-      "desc": "n/a",
-      "whitelist": ["scores.g2.ninja"]
+      "desc": "Submits and fetches global leaderboard scores.",
+      "whitelist": [
+        "https://scores.g2.ninja",
+        "https://fonts.googleapis.com",
+        "https://fonts.gstatic.com",
+        "https://assets.lemonsqueezy.com",
+        "https://store.itsyapps.com"
+      ]
     }
   ]
 }

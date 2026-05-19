@@ -6,6 +6,52 @@ function updateStatus(text: string) {
   if (el) el.textContent = text
 }
 
+// Lemon Squeezy overlay checkout. lemon.js's auto-scan runs at
+// DOMContentLoaded; we drive the overlay programmatically and call Setup()
+// to register an event handler – without it the close-X postMessage from
+// the overlay iframe has no listener and the X appears dead.
+type LemonSqueezy = {
+  Setup: (opts: { eventHandler: (event: { event: string }) => void }) => void
+  Url: { Open: (url: string) => void; Close: () => void }
+  Refresh: () => void
+}
+
+declare global {
+  interface Window {
+    createLemonSqueezy?: () => void
+    LemonSqueezy?: LemonSqueezy
+  }
+}
+
+async function ensureLemonReady(): Promise<LemonSqueezy | null> {
+  const start = Date.now()
+  while (Date.now() - start < 4000) {
+    if (window.LemonSqueezy) return window.LemonSqueezy
+    if (window.createLemonSqueezy) {
+      window.createLemonSqueezy()
+      if (window.LemonSqueezy) return window.LemonSqueezy
+    }
+    await new Promise((r) => setTimeout(r, 100))
+  }
+  return null
+}
+
+function setupCoffeeButton() {
+  const btn = document.getElementById('coffee-btn') as HTMLAnchorElement | null
+  if (!btn) return
+  const url = btn.href
+  void ensureLemonReady().then((ls) => {
+    if (ls) ls.Setup({ eventHandler: () => {} })
+  })
+  btn.addEventListener('click', (e) => {
+    e.preventDefault()
+    void ensureLemonReady().then((ls) => {
+      if (ls) ls.Url.Open(url)
+      else window.open(url, '_blank')
+    })
+  })
+}
+
 function setupInitialsUI(getInitials: () => string, setInitials: (v: string) => void) {
   const panel = document.getElementById('initials-panel')!
   const inputs = [
@@ -62,6 +108,8 @@ async function boot() {
     () => stateModule.game.userInitials,
     (v) => stateModule.saveInitials(v),
   )
+
+  setupCoffeeButton()
 }
 
 void boot().catch((error) => {
